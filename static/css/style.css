@@ -42,4 +42,7 @@ input[type="range"] { width: 100%; }
 .history-item p { font-size: 14px; color: #ccc; }
 .history-item small { color: #888; }
 footer { text-align: center; color: #666; font-size: 12px; padding: 24px 10px; }
+/* Ad slots: hidden while empty; shown once ad code is pasted in */
+.ad-slot { max-width: 728px; margin: 16px auto; text-align: center; min-height: 0; overflow: hidden; }
+.ad-slot:empty { display: none; }
 @media (max-width: 600px) { .brand h1 { font-size: 20px; } main { padding: 14px; } }
