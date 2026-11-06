@@ -82,8 +82,6 @@ voiceforge-2762/
 ├── data/bgm/                 # Optional local background music
 ├── tests/
 │   └── test_voice_registry.py
-├── .github/workflows/
-│   └── python-checks.yml
 ├── requirements.txt
 ├── requirements-dev.txt
 ├── preload_model.py
