@@ -103,6 +103,21 @@ voiceforge-2762/
 
 See [CLOUD_DEPLOYMENT.md](CLOUD_DEPLOYMENT.md). Static hosting can serve the frontend but cannot run the Python TTS backend by itself; a Python-capable service or container is required for full functionality.
 
+## Ads (Adsterra / AdSense)
+
+The UI has 3 ready ad slots in `static/index.html` — empty slots stay hidden until ad code is pasted in:
+
+| Slot | Location |
+| --- | --- |
+| `#ad-top` | Banner under the menu (all tabs) |
+| `#ad-studio` | Under the voice player (Studio tab) |
+| `#ad-bottom` | Banner above the footer (all tabs) |
+
+- **Adsterra** (easiest): create a banner unit in Adsterra, paste its `<script>` straight into a slot. No approval wait, works on new sites.
+- **AdSense**: uncomment the loader script in `<head>` (replace `ca-pub-XXXXXXXXXXXXXXXX` with your publisher ID), then paste each ad unit's `<ins>` code into a slot. Needs a live site + Google approval; a bare tool page is often rejected, so add a Privacy Policy page first.
+
+Ads only earn once the app is live on a public URL with real visitors.
+
 ## Contributing
 
 Issues and pull requests are welcome. For bugs, include the operating system, Python version, relevant steps, and sanitized logs. Never include credentials, private audio, or personal data in an issue.
