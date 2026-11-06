@@ -5,6 +5,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>VoiceForge 2762 — AI Voiceover Studio</title>
 <link rel="stylesheet" href="/static/css/style.css">
+<!-- ============ ADS (Adsterra / AdSense) ============
+  To show ads, paste your ad network code into the 3 slots below
+  (search for "ad-slot" in this file):
+    1. #ad-top    — banner under the menu (all tabs)
+    2. #ad-studio — under the Generate button (Studio tab)
+    3. #ad-bottom — banner above the footer (all tabs)
+  Adsterra: paste the banner/social-bar script straight into a slot.
+  AdSense: first uncomment the script below and put your publisher ID
+  (ca-pub-XXXXXXXXXXXXXXXX), then paste each ad unit's <ins> code
+  into a slot.
+-->
+<!-- AdSense loader (uncomment + replace ca-pub-XXXX with your ID):
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX" crossorigin="anonymous"></script>
+-->
 </head>
 <body>
 <header>
@@ -26,6 +40,9 @@
   <button data-tab="history">🕘 History</button>
   <button data-tab="setup">⚙️ Setup</button>
 </nav>
+
+<!-- AD SLOT 1 (top banner, all tabs) — paste Adsterra/AdSense code here -->
+<div class="ad-slot" id="ad-top"></div>
 
 <main>
   <!-- STUDIO -->
@@ -71,6 +88,9 @@
       <audio id="player" controls></audio>
       <a id="downloadLink" class="btn" download>⬇️ Download</a>
     </div>
+
+    <!-- AD SLOT 2 (Studio, under the player) — paste Adsterra/AdSense code here -->
+    <div class="ad-slot" id="ad-studio"></div>
   </section>
 
   <!-- VOICES -->
@@ -127,6 +147,9 @@
     <div id="tokenStatus" class="status"></div>
   </section>
 </main>
+
+<!-- AD SLOT 3 (bottom banner, all tabs) — paste Adsterra/AdSense code here -->
+<div class="ad-slot" id="ad-bottom"></div>
 
 <footer>VoiceForge 2762 · Local-first Pocket TTS · Unlimited generation · by 2762 AI</footer>
 <script src="/static/js/app.js"></script>
