@@ -5,3 +5,4 @@ pocket-tts
 soundfile
 numpy
 huggingface_hub
+spaces
