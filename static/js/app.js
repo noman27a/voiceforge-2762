@@ -32,6 +32,7 @@ async function loadStatus() {
     } else {
       badge.textContent = "⚠️ Model not loaded — open Setup";
       badge.className = "badge bad";
+      setTimeout(loadStatus, 5000);
     }
   } catch (e) {
     $("statusBadge").textContent = "❌ Server unreachable";
@@ -45,7 +46,7 @@ async function loadVoices() {
   const d = await r.json();
   allVoices = d.voices || [];
   const sel = $("voiceSelect");
-  sel.innerHTML = allVoices.map((v) => `<option value="${v.id}">${v.name} (${v.gender})${v.is_cloned ? " 🧬" : ""}</option>`).join("");
+  sel.innerHTML = allVoices.map((v) => `<option value="${v.id}">${v.name} (${v.gender})${v.is_cloned ? " 🧬" : ""}${v.is_style ? " 🎭" : ""}</option>`).join("");
   sel.value = selectedVoice;
   renderVoiceGrid();
   loadBgm();
@@ -60,7 +61,7 @@ function renderVoiceGrid() {
   );
   $("voiceGrid").innerHTML = list.map((v) => `
     <div class="card">
-      <h3>${v.name}${v.is_cloned ? " 🧬" : ""}</h3>
+      <h3>${v.name}${v.is_cloned ? " 🧬" : ""}${v.is_style ? " 🎭" : ""}</h3>
       <p>${v.description || ""}</p>
       <div>${(v.tags || []).map((t) => `<span class="tag">${t}</span>`).join("")}</div>
       <button class="btn" onclick="previewVoice('${v.id}')">▶️ Preview</button>
