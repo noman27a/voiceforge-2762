@@ -67,6 +67,31 @@ BUILTIN_VOICES = [
      "description": "Natural male voice", "tags": ["natural", "conversational"]},
 ]
 
+# Style characters: named presets built ONLY from Pocket TTS's own voices.
+# A style character is not a new voice model and not a clone of anyone
+# else's voice — it is a built-in base voice plus a pitch/speed preset,
+# so generation stays on Pocket TTS (free, unlimited). This is how
+# ElevenLabs-style characters (e.g. a deep professional voice in the
+# style of ElevenLabs' Henry) are offered without cloning ElevenLabs'
+# stock voices, which belong to their voice actors.
+STYLE_CHARACTERS = [
+    {"id": "deep-pro", "name": "Deep Pro (Henry Style)", "gender": "male",
+     "language": "en",
+     "description": "Deep, professional male narration in the style of ElevenLabs' Henry — built from Pocket TTS",
+     "tags": ["deep", "professional", "narration"], "is_style": True,
+     "base_voice": "charles", "pitch": 0.95, "speed": 0.95},
+    {"id": "warm-storyteller", "name": "Warm Storyteller", "gender": "female",
+     "language": "en",
+     "description": "Warm, mature female voice for stories and audiobooks",
+     "tags": ["warm", "storytelling", "audiobook"], "is_style": True,
+     "base_voice": "caro_davy", "pitch": 0.95, "speed": 0.95},
+    {"id": "energetic-host", "name": "Energetic Host", "gender": "male",
+     "language": "en",
+     "description": "Bright, dynamic male voice for hosting and upbeat videos",
+     "tags": ["energetic", "host", "dynamic"], "is_style": True,
+     "base_voice": "michael", "pitch": 1.08, "speed": 1.08},
+]
+
 
 class VoiceRegistry:
     def __init__(self):
@@ -96,7 +121,7 @@ class VoiceRegistry:
     def get_all_voices(self, gender=None, language=None, search=None):
         with self._lock:
             config = self._read_config()
-            voices = list(BUILTIN_VOICES)
+            voices = list(BUILTIN_VOICES) + list(STYLE_CHARACTERS)
             for item in config.get("cloned_voices", []):
                 if isinstance(item, dict) and item.get("id"):
                     voices.append(item)
