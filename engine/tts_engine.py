@@ -9,6 +9,7 @@ library's public API: TTSModel.load_model, get_state_for_audio_prompt,
 generate_audio, export_model_state / import_model_state.
 """
 import logging
+import re
 import subprocess
 import tempfile
 import time
@@ -32,6 +33,36 @@ BUILTIN_VOICES = [
     "stuart_bell", "caro_davy", "giovanni", "lola", "juergen", "rafael",
     "estelle",
 ]
+
+
+def _split_text(text: str, max_chars: int = 1000) -> list[str]:
+    """Split long text into chunks at sentence boundaries.
+
+    Short texts come back as a single chunk. A very long sentence is
+    split at word boundaries so no chunk exceeds max_chars.
+    """
+    sentences = re.split(r"(?<=[.!?\n])\s+", text.strip())
+    chunks: list[str] = []
+    current = ""
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if not sentence:
+            continue
+        if len(current) + len(sentence) + 1 <= max_chars:
+            current = f"{current} {sentence}".strip()
+            continue
+        if current:
+            chunks.append(current)
+        while len(sentence) > max_chars:
+            cut = sentence.rfind(" ", 0, max_chars)
+            if cut <= 0:
+                cut = max_chars
+            chunks.append(sentence[:cut].strip())
+            sentence = sentence[cut:].strip()
+        current = sentence
+    if current:
+        chunks.append(current)
+    return chunks or [text]
 
 
 class TTSEngine:
@@ -149,12 +180,21 @@ class TTSEngine:
         start = time.time()
         try:
             voice_state = self._get_voice_state(voice_id)
-            audio = self.model.generate_audio(voice_state, text)
-            if hasattr(audio, "detach"):
-                audio = audio.detach().cpu().numpy()
-            elif hasattr(audio, "numpy"):
-                audio = audio.numpy()
-            audio_np = np.asarray(audio).squeeze()
+            sample_rate = int(getattr(self.model, "sample_rate", 24000))
+            # Long texts: generate in sentence-sized chunks so a 30+ min
+            # voiceover never goes through the model as one giant call.
+            chunks = _split_text(text)
+            parts: list[np.ndarray] = []
+            for index, chunk in enumerate(chunks):
+                audio = self.model.generate_audio(voice_state, chunk)
+                if hasattr(audio, "detach"):
+                    audio = audio.detach().cpu().numpy()
+                elif hasattr(audio, "numpy"):
+                    audio = audio.numpy()
+                parts.append(np.asarray(audio).squeeze().astype(np.float32))
+                if index < len(chunks) - 1:
+                    parts.append(np.zeros(int(0.2 * sample_rate), dtype=np.float32))
+            audio_np = np.concatenate(parts) if len(parts) > 1 else parts[0]
 
             # speed: resample by linear interpolation
             if speed != 1.0 and speed > 0:
@@ -165,7 +205,6 @@ class TTSEngine:
                         np.linspace(0, n - 1, new_len), np.arange(n), audio_np
                     )
 
-            sample_rate = int(getattr(self.model, "sample_rate", 24000))
             duration = len(audio_np) / sample_rate
 
             import soundfile as sf
