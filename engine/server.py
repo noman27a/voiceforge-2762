@@ -17,6 +17,7 @@ import sys
 import time
 import uuid
 import zipfile
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -48,8 +49,20 @@ BGM_DIR = DATA_DIR / "bgm"
 for directory in (OUTPUT_DIR, CLONED_DIR, BGM_DIR):
     directory.mkdir(parents=True, exist_ok=True)
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Preload the Pocket TTS model in the background as soon as the
+    # server starts, so the first Generate click is instant instead of
+    # waiting ~90s for the model to download/load. The server keeps
+    # accepting requests while the model loads; /api/setup-status
+    # reports the live progress and the UI badge follows it.
+    if not engine.model_loaded and not engine.loading:
+        asyncio.create_task(engine.load_model())
+    yield
+
+
 app = FastAPI(title="VoiceForge 2762", version="1.0.0",
-              docs_url="/api/docs", redoc_url=None)
+              docs_url="/api/docs", redoc_url=None, lifespan=lifespan)
 registry = VoiceRegistry()
 engine = TTSEngine()
 
@@ -206,8 +219,8 @@ async def generate_speech(request: Request):
     output_format = str(body.get("output_format", "wav")).lower()
     if not text:
         raise HTTPException(status_code=400, detail="Text is required")
-    if len(text) > 5000:
-        raise HTTPException(status_code=400, detail="Text too long (max 5000 characters)")
+    if len(text) > 50000:
+        raise HTTPException(status_code=400, detail="Text too long (max 50000 characters)")
     if output_format not in {"wav", "mp3"}:
         raise HTTPException(status_code=400, detail="Output format must be wav or mp3")
     bgm_path = _resolve_bgm(body.get("bgm_file"))
@@ -387,10 +400,10 @@ async def generate_batch(request: Request):
             text = str(raw_text).strip()
             if not text:
                 continue
-            if len(text) > 5000:
+            if len(text) > 50000:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Batch item {index + 1} exceeds 5000 characters",
+                    detail=f"Batch item {index + 1} exceeds 50000 characters",
                 )
             try:
                 audio_bytes, _ = await engine.generate(
