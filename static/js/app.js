@@ -46,7 +46,24 @@ async function loadVoices() {
   const d = await r.json();
   allVoices = d.voices || [];
   const sel = $("voiceSelect");
-  sel.innerHTML = allVoices.map((v) => `<option value="${v.id}">${v.name} (${v.gender})${v.is_cloned ? " 🧬" : ""}${v.is_style ? " 🎭" : ""}</option>`).join("");
+  const groups = [
+    ["⭐ Featured characters", (v) => (v.tags || []).includes("featured")],
+    ["Base voices", (v) => !v.is_style && !v.is_cloned],
+    ["Deep", (v) => v.is_style && (v.tags || []).includes("deep")],
+    ["Warm", (v) => v.is_style && (v.tags || []).includes("warm")],
+    ["Bright", (v) => v.is_style && (v.tags || []).includes("bright")],
+    ["Energetic", (v) => v.is_style && (v.tags || []).includes("energetic")],
+    ["Calm", (v) => v.is_style && (v.tags || []).includes("calm")],
+    ["Soft", (v) => v.is_style && (v.tags || []).includes("soft")],
+    ["Cloned voices", (v) => !!v.is_cloned],
+  ];
+  const used = new Set();
+  const opt = (v) => `<option value="${v.id}">${v.name} (${v.gender})${v.is_cloned ? " 🧬" : ""}${v.is_style ? " 🎭" : ""}</option>`;
+  sel.innerHTML = groups.map(([label, test]) => {
+    const items = allVoices.filter((v) => test(v) && !used.has(v.id));
+    items.forEach((v) => used.add(v.id));
+    return items.length ? `<optgroup label="${label}">${items.map(opt).join("")}</optgroup>` : "";
+  }).join("") + allVoices.filter((v) => !used.has(v.id)).map(opt).join("");
   sel.value = selectedVoice;
   renderVoiceGrid();
   loadBgm();
@@ -55,10 +72,15 @@ async function loadVoices() {
 function renderVoiceGrid() {
   const q = ($("voiceSearch").value || "").toLowerCase();
   const g = $("genderFilter").value;
-  const list = allVoices.filter((v) =>
-    (!g || v.gender === g) &&
-    (!q || (v.name + " " + (v.description || "")).toLowerCase().includes(q))
-  );
+  const c = $("categoryFilter").value;
+  const list = allVoices.filter((v) => {
+    if (g && v.gender !== g) return false;
+    if (q && !(v.name + " " + (v.description || "")).toLowerCase().includes(q)) return false;
+    if (!c) return true;
+    if (c === "base") return !v.is_style && !v.is_cloned;
+    if (c === "cloned") return !!v.is_cloned;
+    return (v.tags || []).includes(c);
+  });
   $("voiceGrid").innerHTML = list.map((v) => `
     <div class="card">
       <h3>${v.name}${v.is_cloned ? " 🧬" : ""}${v.is_style ? " 🎭" : ""}</h3>
@@ -83,6 +105,7 @@ async function previewVoice(id) {
 
 $("voiceSearch").addEventListener("input", renderVoiceGrid);
 $("genderFilter").addEventListener("change", renderVoiceGrid);
+$("categoryFilter").addEventListener("change", renderVoiceGrid);
 $("voiceSelect").addEventListener("change", (e) => (selectedVoice = e.target.value));
 
 // ---- sliders ----
