@@ -16,6 +16,7 @@ import uuid
 from pathlib import Path
 
 import numpy as np
+import spaces
 
 logger = logging.getLogger("voiceforge2762.engine")
 
@@ -32,6 +33,70 @@ BUILTIN_VOICES = [
     "stuart_bell", "caro_davy", "giovanni", "lola", "juergen", "rafael",
     "estelle",
 ]
+
+# Model handle shared with the ZeroGPU worker (see _generate_audio_on_gpu).
+_SHARED_MODEL = None
+
+
+def _resolve_voice_state(model, voice_id: str):
+    """Resolve a voice id to a Pocket TTS voice state (worker-side).
+
+    Mirrors TTSEngine._get_voice_state but works without an engine
+    instance, so the ZeroGPU worker process can resolve voices itself.
+    """
+    if voice_id in BUILTIN_VOICES:
+        try:
+            return model.get_state_for_audio_prompt(voice_id)
+        except Exception:
+            logger.exception("Built-in voice load failed: %s", voice_id)
+    state_path = CLONED_DIR / f"{voice_id}.safetensors"
+    if state_path.exists():
+        try:
+            from pocket_tts import import_model_state
+
+            return import_model_state(str(state_path))
+        except Exception:
+            logger.exception("Cloned voice state load failed")
+    audio_path = CLONED_DIR / f"{voice_id}_reference.wav"
+    if audio_path.exists():
+        try:
+            return model.get_state_for_audio_prompt(str(audio_path))
+        except Exception:
+            logger.exception("Voice load from reference audio failed")
+    logger.warning("Voice %s not found; falling back to alba", voice_id)
+    return model.get_state_for_audio_prompt("alba")
+
+
+@spaces.GPU(duration=120)
+def _generate_audio_on_gpu(text: str, voice_id: str) -> tuple[bytes, int]:
+    """Run Pocket TTS inference.
+
+    Plain sync module-level function: @spaces.GPU cannot decorate async
+    functions or methods (the library raises NotImplementedError for
+    coroutine functions). On a ZeroGPU Space this runs in a forked worker
+    process with a GPU allocated for the call; args/results cross a
+    multiprocessing queue, so only picklable values (str/bytes/int) pass.
+    The model is inherited from the parent process via _SHARED_MODEL
+    (fork copies memory) and loaded lazily here if it is not set yet.
+    Off ZeroGPU (local dev) the decorator is a no-op passthrough.
+    """
+    global _SHARED_MODEL
+    model = _SHARED_MODEL
+    if model is None:
+        from pocket_tts import TTSModel
+
+        model = TTSModel.load_model()
+        _SHARED_MODEL = model
+
+    voice_state = _resolve_voice_state(model, voice_id)
+    audio = model.generate_audio(voice_state, text)
+    if hasattr(audio, "detach"):
+        audio = audio.detach().cpu().numpy()
+    elif hasattr(audio, "numpy"):
+        audio = audio.numpy()
+    audio_np = np.asarray(audio).squeeze()
+    sample_rate = int(getattr(model, "sample_rate", 24000))
+    return audio_np.astype(np.float32).tobytes(), sample_rate
 
 
 class TTSEngine:
@@ -57,6 +122,7 @@ class TTSEngine:
 
     async def load_model(self):
         """Load the Pocket TTS model (downloads weights on first run)."""
+        global _SHARED_MODEL
         if self.model_loaded or self.loading:
             return
         self.loading = True
@@ -71,6 +137,7 @@ class TTSEngine:
             self.setup_status = "Model ready"
             self.setup_progress = 100
             self.model_loaded = True
+            _SHARED_MODEL = self.model
             self.voice_cloning_available = bool(
                 getattr(self.model, "has_voice_cloning", False)
             )
@@ -148,13 +215,8 @@ class TTSEngine:
 
         start = time.time()
         try:
-            voice_state = self._get_voice_state(voice_id)
-            audio = self.model.generate_audio(voice_state, text)
-            if hasattr(audio, "detach"):
-                audio = audio.detach().cpu().numpy()
-            elif hasattr(audio, "numpy"):
-                audio = audio.numpy()
-            audio_np = np.asarray(audio).squeeze()
+            audio_bytes, sample_rate = _generate_audio_on_gpu(text, voice_id)
+            audio_np = np.frombuffer(audio_bytes, dtype=np.float32)
 
             # speed: resample by linear interpolation
             if speed != 1.0 and speed > 0:
@@ -165,7 +227,6 @@ class TTSEngine:
                         np.linspace(0, n - 1, new_len), np.arange(n), audio_np
                     )
 
-            sample_rate = int(getattr(self.model, "sample_rate", 24000))
             duration = len(audio_np) / sample_rate
 
             import soundfile as sf
