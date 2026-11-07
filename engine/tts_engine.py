@@ -65,6 +65,27 @@ def _split_text(text: str, max_chars: int = 1000) -> list[str]:
     return chunks or [text]
 
 
+def _clean_reference_audio(raw_path: Path, ref_path: Path) -> bool:
+    """Convert the cloning reference to 24 kHz mono and strip background noise.
+
+    Reference recordings often carry room noise, hum or music behind the
+    voice — without cleaning, that noise gets cloned along with the voice.
+    afftdn (FFT denoiser) + a high-pass remove it. Returns True on success;
+    on failure the caller falls back to a plain conversion so cloning
+    still works.
+    """
+    res = subprocess.run(
+        ["ffmpeg", "-y", "-i", str(raw_path),
+         "-af", "highpass=f=80,afftdn=nr=12:nf=-25",
+         "-ar", "24000", "-ac", "1", "-c:a", "pcm_s16le", str(ref_path)],
+        capture_output=True, text=True, check=False,
+    )
+    if res.returncode:
+        logger.warning("Reference denoise failed (%s); using plain convert",
+                       res.stderr[-200:])
+    return res.returncode == 0
+
+
 class TTSEngine:
     """Pocket TTS engine with voice cloning support."""
 
@@ -290,16 +311,18 @@ class TTSEngine:
             raw_path.write_bytes(audio_bytes)
             ref_path = CLONED_DIR / f"{voice_id}_reference.wav"
             try:
-                res = subprocess.run(
-                    ["ffmpeg", "-y", "-i", str(raw_path), "-ar", "24000",
-                     "-ac", "1", "-c:a", "pcm_s16le", str(ref_path)],
-                    capture_output=True, text=True, check=False,
-                )
-                if res.returncode:
-                    raise RuntimeError(
-                        "FFmpeg reference audio convert nahi kar saka: "
-                        + res.stderr[-500:]
+                cleaned = _clean_reference_audio(raw_path, ref_path)
+                if not cleaned:
+                    res = subprocess.run(
+                        ["ffmpeg", "-y", "-i", str(raw_path), "-ar", "24000",
+                         "-ac", "1", "-c:a", "pcm_s16le", str(ref_path)],
+                        capture_output=True, text=True, check=False,
                     )
+                    if res.returncode:
+                        raise RuntimeError(
+                            "FFmpeg reference audio convert nahi kar saka: "
+                            + res.stderr[-500:]
+                        )
             finally:
                 raw_path.unlink(missing_ok=True)
 
